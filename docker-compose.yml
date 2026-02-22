@@ -3,7 +3,6 @@ version: "3.8"
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.1
-    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -12,25 +11,29 @@ services:
     networks:
       - microservices-network
     healthcheck:
-      test: [ "CMD-SHELL", "echo ruok | timeout 2 bash -lc 'cat < /dev/tcp/localhost/2181' | grep imok" ]
+      test: [ "CMD-SHELL", "bash -lc \"echo srvr > /dev/tcp/localhost/2181\"" ]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 20s
     restart: unless-stopped
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
-    container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
 
-      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
 
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -41,27 +44,29 @@ services:
     networks:
       - microservices-network
     healthcheck:
-      test: ["CMD", "bash", "-lc", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "bash -lc \"kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1\""]
       interval: 15s
       timeout: 10s
-      retries: 10
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
 
   user-service:
     build:
       context: ./user-service
       dockerfile: Dockerfile
-    container_name: user-service
     ports:
       - "8081:8081"
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - microservices-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -72,17 +77,18 @@ services:
     build:
       context: ./product-service
       dockerfile: Dockerfile
-    container_name: product-service
     ports:
       - "8082:8082"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - microservices-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8082/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -93,21 +99,26 @@ services:
     build:
       context: ./order-service
       dockerfile: Dockerfile
-    container_name: order-service
     ports:
       - "8083:8083"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
+
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
       SERVICES_USER_URL: http://user-service:8081
       SERVICES_PRODUCT_URL: http://product-service:8082
     depends_on:
-      - kafka
-      - user-service
-      - product-service
+      kafka:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
     networks:
       - microservices-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/actuator/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8083/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -118,17 +129,24 @@ services:
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
-    container_name: api-gateway
     ports:
       - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVICES_USER_URL: http://user-service:8081
+      SERVICES_PRODUCT_URL: http://product-service:8082
+      SERVICES_ORDER_URL: http://order-service:8083
     depends_on:
-      - user-service
-      - product-service
-      - order-service
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
     networks:
       - microservices-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
