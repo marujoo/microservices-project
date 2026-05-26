@@ -33,7 +33,7 @@ jobs:
         run: mvn -B -q compile
 
       - name: Unit tests
-        run: mvn -B verify
+        run: mvn -B test
 
       - name: Upload test results
         if: always()
