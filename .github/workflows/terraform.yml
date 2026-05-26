@@ -2,12 +2,8 @@ name: Terraform
 
 on:
   pull_request:
-    paths:
-      - 'infra/week9-sqs/**'
   push:
     branches: [ week11 ]
-    paths:
-      - 'infra/week9-sqs/**'
   workflow_dispatch:
 
 permissions:
