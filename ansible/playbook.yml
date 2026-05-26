@@ -1,0 +1,23 @@
+---
+- name: Configure Web Server
+  hosts: web_servers
+  become: yes
+
+  tasks:
+    - name: Update system packages
+      command: yum update -y
+
+    - name: Install Docker
+      command: yum install -y docker
+
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes

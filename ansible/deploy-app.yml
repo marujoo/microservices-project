@@ -1,0 +1,15 @@
+---
+- name: Deploy Test Application
+  hosts: web_servers
+  become: yes
+
+  tasks:
+    - name: Pull nginx image
+      command: docker pull nginx
+
+    - name: Remove existing container
+      command: docker rm -f lab10-nginx
+      ignore_errors: yes
+
+    - name: Run nginx container
+      command: docker run -d --name lab10-nginx -p 8080:80 nginx
