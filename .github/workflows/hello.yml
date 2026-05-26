@@ -7,15 +7,16 @@ on:
 jobs:
   hello:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Print context
         run: |
-          echo "Repo:   ${{ github.repository }}"
+          echo "Repo: ${{ github.repository }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "Commit: ${{ github.sha }}"
-          echo "Actor:  ${{ github.actor }}"
+          echo "Actor: ${{ github.actor }}"
 
       - name: List files
         run: ls -la
