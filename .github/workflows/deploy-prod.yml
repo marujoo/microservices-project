@@ -1,0 +1,29 @@
+name: Production Deploy
+
+on:
+  push:
+    branches: [ week11 ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build step
+        run: echo "Build completed"
+
+  deploy-prod:
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: https://example.com
+
+    steps:
+      - name: Deploy to production
+        run: echo "Deploying to production..."
